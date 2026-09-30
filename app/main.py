@@ -1,22 +1,25 @@
-from datetime import UTC, datetime
-from uuid import uuid4
-
 from fastapi import FastAPI, status
 
 from app.schema.opportunity_search import (
     OpportunitySearchCreate,
-    OpportunitySearchResponse, 
+    OpportunitySearchResponse,
     OpportunitySearchStatus,
 )
 
-app = FastAPI (
-    title="Evidence-Grounded Product Opportunity Agent",
+from app.service.opportunity_search import OpportunitySearchService
+
+
+app = FastAPI(
+    title="Data-Driven Product Opportunity Agent",
     description=(
         "Identifies product opportunities and connects them "
         "to supporting and contradictory evidence"
     ),
     version="0.1.0"
 )
+
+
+opportunity_search_service = OpportunitySearchService()
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
@@ -30,14 +33,4 @@ def health_check() -> dict[str, str]:
 def create_opportunity_search(
     request: OpportunitySearchCreate,
 ) -> OpportunitySearchResponse:
-    return OpportunitySearchResponse(
-        id=uuid4(),
-        product_category=request.product_category,
-        market=request.market,
-        target_customer=request.target_customer,
-        objective=request.objective,
-        constraints=request.constraints,
-        initial_hypothesis=request.initial_hypothesis,
-        status=OpportunitySearchStatus.CREATED,
-        created_at=datetime.now(UTC),
-    )
+    return opportunity_search_service.create(request)
