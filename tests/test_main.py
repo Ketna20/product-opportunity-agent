@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-
+from uuid import uuid4
 from app.main import app
 
 client = TestClient(app)
@@ -58,3 +58,52 @@ def test_rejects_short_objective() -> None:
     )
 
     assert response.status_code == 422
+
+
+
+def test_get_opportunity_search() -> None:
+    request_body = {
+        "product_category": "Facial moisturizer",
+        "market": "United States",
+        "target_customer": (
+            "Environmentally conscious skincare consumers"
+        ),
+        "objective": (
+            "Identify an unmet customer need that could "
+            "support a new product"
+        ),
+        "constraints": [
+            "Retail price below $60",
+            "Suitable for direct-to-consumer sales",
+        ],
+        "initial_hypothesis": None,
+    }
+
+    create_response = client.post(
+        "/opportunity-searches",
+        json=request_body,
+    )
+
+    assert create_response.status_code == 201
+
+    search_id = create_response.json()["id"]
+
+    get_response = client.get(
+        f"/opportunity-searches/{search_id}"
+    )
+
+    assert get_response.status_code == 200
+    assert get_response.json() == create_response.json()
+
+
+def test_get_unknown_opportunity_search_returns_404() -> None:
+    unknown_id = uuid4()
+
+    response = client.get(
+        f"/opportunity-searches/{unknown_id}"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Opportunity search not found"
+    }
