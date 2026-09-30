@@ -6,8 +6,8 @@ from app.schema.opportunity_search import (
     OpportunitySearchStatus,
 )
 
-from app.service.opportunity_search import OpportunitySearchService
-
+from app.service.opportunity_search_service import OpportunitySearchService
+from app.repository.opportunity_search_repo import InMemoryOpportunitySearchRepository
 
 app = FastAPI(
     title="Data-Driven Product Opportunity Agent",
@@ -18,8 +18,13 @@ app = FastAPI(
     version="0.1.0"
 )
 
+opportunity_search_repository = (
+    InMemoryOpportunitySearchRepository()
+)
 
-opportunity_search_service = OpportunitySearchService()
+opportunity_search_service = OpportunitySearchService(
+    opportunity_search_repository
+)
 
 @app.get("/health")
 def health_check() -> dict[str, str]:

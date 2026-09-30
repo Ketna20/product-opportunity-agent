@@ -4,11 +4,12 @@ from app.schema.opportunity_search import (
     OpportunitySearchCreate,
     OpportunitySearchStatus,
 )
-from app.service.opportunity_search import OpportunitySearchService
-
+from app.service.opportunity_search_service import OpportunitySearchService
+from app.repository.opportunity_search_repo import InMemoryOpportunitySearchRepository
 
 def test_create_opportunity_search() -> None:
-    service = OpportunitySearchService()
+    repository = InMemoryOpportunitySearchRepository()
+    service = OpportunitySearchService(repository)
 
     request = OpportunitySearchCreate(
         product_category="Facial moisturizer",
@@ -29,7 +30,12 @@ def test_create_opportunity_search() -> None:
 
     result = service.create(request)
 
+    stored_search = repository.get_by_id(result.id)
+
     assert isinstance(result.id, UUID)
+    assert stored_search == result
+    retrieved_Search= service.get_by_id(result.id)
+    assert retrieved_Search == result
     assert result.product_category == request.product_category
     assert result.market == request.market
     assert result.target_customer == request.target_customer
