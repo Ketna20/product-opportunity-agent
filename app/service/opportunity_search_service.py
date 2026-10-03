@@ -8,16 +8,16 @@ from app.schema.opportunity_search import (
 )
 
 from app.repository.opportunity_search_repo import (
-    InMemoryOpportunitySearchRepository,
+    OpportunitySearchRepository,
 )
 
 
 class OpportunitySearchService:
     def __init__(
         self,
-        repositoy: InMemoryOpportunitySearchRepository,
+        repository: OpportunitySearchRepository,
     ) -> None:
-        self._repository = repositoy
+        self._repository = repository
 
     def create(
         self,

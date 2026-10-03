@@ -1,6 +1,21 @@
+from typing import Protocol
 from uuid import UUID
 
 from app.schema.opportunity_search import OpportunitySearchResponse
+
+
+class OpportunitySearchRepository(Protocol):
+    def save(
+        self,
+        search: OpportunitySearchResponse,
+    ) -> OpportunitySearchResponse:
+        ...
+
+    def get_by_id(
+        self,
+        search_id: UUID,
+    ) -> OpportunitySearchResponse | None:
+        ...
 
 
 class InMemoryOpportunitySearchRepository:

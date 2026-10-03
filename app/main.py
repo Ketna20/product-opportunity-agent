@@ -1,9 +1,12 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
+from sqlalchemy.orm import Session
+from app.database import get_db_session
 
-from app.repository.opportunity_search_repo import (
-    InMemoryOpportunitySearchRepository,
+from app.repository.sqlalchemy_opportunity_search_repo import (
+    SqlAlchemyOpportunitySearchRepository,
 )
 from app.schema.opportunity_search import (
     OpportunitySearchCreate,
@@ -23,12 +26,23 @@ app = FastAPI(
     version="0.1.0",
 )
 
-opportunity_search_repository = (
-    InMemoryOpportunitySearchRepository()
-)
-opportunity_search_service = OpportunitySearchService(
-    opportunity_search_repository
-)
+DatabaseSession = Annotated[
+    Session,
+    Depends(get_db_session),
+]
+
+
+def get_opportunity_search_service(
+    session: DatabaseSession,
+) -> OpportunitySearchService:
+    repository = SqlAlchemyOpportunitySearchRepository(session)
+    return OpportunitySearchService(repository)
+
+
+OpportunitySearchServiceDependency = Annotated[
+    OpportunitySearchService,
+    Depends(get_opportunity_search_service),
+]
 
 
 @app.get("/health")
@@ -38,23 +52,23 @@ def health_check() -> dict[str, str]:
 
 @app.post(
     "/opportunity-searches",
-    response_model=OpportunitySearchResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def create_opportunity_search(
     request: OpportunitySearchCreate,
+    service: OpportunitySearchServiceDependency,
 ) -> OpportunitySearchResponse:
-    return opportunity_search_service.create(request)
+    return service.create(request)
 
 
 @app.get(
     "/opportunity-searches/{search_id}",
-    response_model=OpportunitySearchResponse,
 )
 def get_opportunity_search(
     search_id: UUID,
+    service: OpportunitySearchServiceDependency,
 ) -> OpportunitySearchResponse:
-    search = opportunity_search_service.get_by_id(search_id)
+    search = service.get_by_id(search_id)
     if search is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
