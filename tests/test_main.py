@@ -1,18 +1,23 @@
 from fastapi.testclient import TestClient
-from uuid import uuid4
-from app.main import app
+from uuid import UUID, uuid4
 
-client = TestClient(app)
+from sqlalchemy.orm import Session
 
+from app.model.opportunity_search_model import (
+    OpportunitySearchModel,
+)
 
-def test_health_check() -> None:
+def test_health_check(client: TestClient) -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
 
-def test_create_opportunity_search() -> None:
+def test_create_opportunity_search(
+        client: TestClient,
+        db_session: Session,
+) -> None:
     request_body = {
         "product_category": "Facial moisturizer",
         "market": "United States",
@@ -36,6 +41,17 @@ def test_create_opportunity_search() -> None:
     )
     response_body = response.json()
 
+    persisted_model = db_session.get(
+        OpportunitySearchModel,
+        UUID(response_body["id"]),
+    )
+
+    assert persisted_model is not None
+    assert (
+        persisted_model.product_category
+        == "Facial moisturizer"
+    )
+    assert persisted_model.status.value == "created"
     assert response.status_code == 201
     assert response_body["product_category"] == "Facial moisturizer"
     assert response_body["market"] == "United States"
@@ -44,7 +60,9 @@ def test_create_opportunity_search() -> None:
     assert response_body["created_at"] is not None
 
 
-def test_rejects_short_objective() -> None:
+
+
+def test_rejects_short_objective(client: TestClient) -> None:
     request_body = {
         "product_category": "Facial moisturizer",
         "market": "United States",
@@ -61,7 +79,7 @@ def test_rejects_short_objective() -> None:
 
 
 
-def test_get_opportunity_search() -> None:
+def test_get_opportunity_search(client: TestClient) -> None:
     request_body = {
         "product_category": "Facial moisturizer",
         "market": "United States",
@@ -96,7 +114,7 @@ def test_get_opportunity_search() -> None:
     assert get_response.json() == create_response.json()
 
 
-def test_get_unknown_opportunity_search_returns_404() -> None:
+def test_get_unknown_opportunity_search_returns_404(client: TestClient) -> None:
     unknown_id = uuid4()
 
     response = client.get(

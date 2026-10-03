@@ -1,3 +1,4 @@
 fastapi[standard]
 sqlalchemy
 psycopg[binary]
+alembic==1.20.0

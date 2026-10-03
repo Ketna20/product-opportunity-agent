@@ -27,13 +27,14 @@ The focus is not only on generating AI output, but on making that output traceab
 
 The current API supports:
 
-- Creating an opportunity-search request
-- Validating request data with Pydantic
-- Assigning a UUID, lifecycle status, and UTC timestamp
-- Storing searches in an in-memory repository
-- Retrieving a search by ID
-- Returning `404 Not Found` for an unknown search
-- Automated API, service, and repository tests
+- Creating and retrieving opportunity searches
+- Validating request and response data with Pydantic
+- Assigning UUIDs, lifecycle status, and UTC timestamps
+- Persisting searches in PostgreSQL through SQLAlchemy
+- Managing schema changes with Alembic migrations
+- Returning `404 Not Found` for unknown searches
+- Isolated unit and PostgreSQL integration tests
+- Rolling back database changes after each automated test
 
 ## Current Architecture
 
@@ -42,10 +43,14 @@ FastAPI route
     ↓
 OpportunitySearchService
     ↓
-InMemoryOpportunitySearchRepository
+OpportunitySearchRepository Protocol
+    ↓
+SQLAlchemy repository
+    ↓
+PostgreSQL
 ```
 
-The application currently uses an in-memory repository. This boundary is intentionally separated so it can later be replaced with PostgreSQL through SQLAlchemy.
+The repository boundary also supports an in-memory implementation for focused unit tests. FastAPI dependency injection creates a request-scoped SQLAlchemy session, repository, and service.
 
 ## Technology Stack
 
@@ -56,18 +61,19 @@ The application currently uses an in-memory repository. This boundary is intenti
 - Pydantic
 - Pytest
 - HTTPX/FastAPI TestClient
+- SQLAlchemy 2.x
+- PostgreSQL 17
+- Psycopg
+- Alembic
+- Docker Compose
 
 ### Planned
 
-- SQLAlchemy
-- PostgreSQL
-- Alembic
 - pgvector
 - LLM tool calling and structured outputs
 - Retrieval-augmented generation
 - Evaluation harnesses
 - Observability and tracing
-- Docker
 - Next.js and TypeScript
 
 ## API Endpoints
@@ -135,7 +141,19 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-### 4. Start the API
+### 4. Start PostgreSQL
+
+```bash
+docker compose up -d
+```
+
+### 5. Apply database migrations
+
+```bash
+alembic upgrade head
+```
+
+### 6. Start the API
 
 ```bash
 uvicorn app.main:app --reload
@@ -143,10 +161,27 @@ uvicorn app.main:app --reload
 
 Then open:
 
-- API documentation: `http://127.0.0.1:8000/docs`
-- Health endpoint: `http://127.0.0.1:8000/health`
+- API documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- Health endpoint: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 
 ## Running the Tests
+
+Create the dedicated test database once:
+
+```bash
+docker compose exec postgres createdb \
+  -U opportunity_user \
+  product_opportunity_test
+```
+
+Apply migrations to it:
+
+```bash
+DATABASE_URL="postgresql+psycopg://opportunity_user:opportunity_password@localhost:5433/product_opportunity_test" \
+alembic upgrade head
+```
+
+Run the tests:
 
 ```bash
 python -m pytest
@@ -161,6 +196,10 @@ The current test suite covers:
 - Repository storage and retrieval
 - Successful API retrieval
 - `404 Not Found` behavior
+- In-memory repository unit behavior
+- SQLAlchemy repository integration
+- Persisted API behavior
+- Per-test transaction rollback and database isolation
 
 ## Project Structure
 
@@ -191,8 +230,10 @@ product-opportunity-agent/
 - [x] In-memory persistence
 - [x] Create and retrieve endpoints
 - [x] Automated tests
-- [ ] PostgreSQL persistence with SQLAlchemy
-- [ ] Database migrations with Alembic
+- [x] PostgreSQL persistence with SQLAlchemy
+- [x] Database migrations with Alembic
+- [x] Isolated PostgreSQL integration tests
+- [x] Docker Compose for local PostgreSQL
 - [ ] Evidence ingestion and document processing
 - [ ] Semantic retrieval with embeddings and pgvector
 - [ ] Evidence extraction and grouping
@@ -203,7 +244,7 @@ product-opportunity-agent/
 - [ ] Human review workflow
 - [ ] Evaluation and observability
 - [ ] Next.js user interface
-- [ ] Docker and deployment
+- [ ] Containerized application deployment
 
 ## Project Status
 
