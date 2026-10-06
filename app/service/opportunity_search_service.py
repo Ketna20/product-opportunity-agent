@@ -38,9 +38,7 @@ class OpportunitySearchService:
         return self._repository.save(search)
 
     def get_by_id(
-            self,
-            search_id: UUID,
+        self,
+        search_id: UUID,
     ) -> OpportunitySearchResponse | None:
         return self._repository.get_by_id(search_id)
-        
-        

@@ -15,6 +15,15 @@ from app.schema.opportunity_search import (
 from app.service.opportunity_search_service import (
     OpportunitySearchService,
 )
+from app.repository.sqlalchemy_evidence_repo import (
+    SqlAlchemyEvidenceRepository,
+)
+from app.schema.evidence import EvidenceCreate, EvidenceResponse
+from app.service.evidence_service import (
+    EvidenceService,
+    OpportunitySearchNotFoundError,
+)
+
 
 
 app = FastAPI(
@@ -43,6 +52,19 @@ OpportunitySearchServiceDependency = Annotated[
     OpportunitySearchService,
     Depends(get_opportunity_search_service),
 ]
+
+def get_evidence_service(
+    session: DatabaseSession,
+) -> EvidenceService:
+    evidence_repository = SqlAlchemyEvidenceRepository(session)
+    opportunity_search_repository = SqlAlchemyOpportunitySearchRepository(session)
+    return EvidenceService(evidence_repository, opportunity_search_repository)
+
+EvidenceServiceDependency = Annotated[
+    EvidenceService,
+    Depends(get_evidence_service),
+]
+
 
 
 @app.get("/health")
@@ -75,3 +97,21 @@ def get_opportunity_search(
             detail="Opportunity search not found",
         )
     return search
+
+
+@app.post(
+    "/opportunity-searches/{search_id}/evidence",
+    status_code=status.HTTP_201_CREATED,
+)
+def create_evidence(
+    search_id: UUID,
+    request: EvidenceCreate,
+    service: EvidenceServiceDependency,
+) -> EvidenceResponse:
+    try:
+        return service.create(search_id, request)
+    except OpportunitySearchNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Opportunity search not found",
+        )

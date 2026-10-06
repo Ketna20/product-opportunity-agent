@@ -28,29 +28,33 @@ The focus is not only on generating AI output, but on making that output traceab
 The current API supports:
 
 - Creating and retrieving opportunity searches
+- Adding structured evidence to an existing opportunity search
 - Validating request and response data with Pydantic
 - Assigning UUIDs, lifecycle status, and UTC timestamps
-- Persisting searches in PostgreSQL through SQLAlchemy
+- Persisting opportunity searches and evidence in PostgreSQL
+- Enforcing the relationship between evidence and its parent search
 - Managing schema changes with Alembic migrations
 - Returning `404 Not Found` for unknown searches
-- Isolated unit and PostgreSQL integration tests
+- Isolated unit, API, and PostgreSQL integration tests
 - Rolling back database changes after each automated test
 
 ## Current Architecture
 
 ```text
-FastAPI route
+FastAPI routes
     ↓
-OpportunitySearchService
+Application services
     ↓
-OpportunitySearchRepository Protocol
+Repository protocols
     ↓
-SQLAlchemy repository
+SQLAlchemy repositories
     ↓
 PostgreSQL
 ```
 
-The repository boundary also supports an in-memory implementation for focused unit tests. FastAPI dependency injection creates a request-scoped SQLAlchemy session, repository, and service.
+The application has separate service and repository boundaries for opportunity searches and evidence. Evidence creation validates that its parent opportunity search exists before persistence.
+
+Repository protocols also support in-memory implementations for focused unit tests. FastAPI dependency injection creates request-scoped SQLAlchemy sessions, repositories, and services.
 
 ## Technology Stack
 
@@ -112,6 +116,25 @@ Example request:
 GET /opportunity-searches/{search_id}
 ```
 
+### Add evidence to an opportunity search
+
+```http
+POST /opportunity-searches/{search_id}/evidence
+```
+
+Example request:
+
+```json
+{
+  "source_type": "customer_review",
+  "source_name": "Amazon review",
+  "content": "The moisturizer works well, but the packaging creates too much waste.",
+  "source_url": "https://example.com/reviews/123"
+}
+```
+
+The endpoint returns `404 Not Found` when the parent opportunity search does not exist.
+
 ## Running the Project Locally
 
 ### 1. Clone the repository
@@ -161,8 +184,8 @@ uvicorn app.main:app --reload
 
 Then open:
 
-- API documentation: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-- Health endpoint: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- API documentation: http://127.0.0.1:8000/docs
+- Health endpoint: http://127.0.0.1:8000/health
 
 ## Running the Tests
 
@@ -187,7 +210,7 @@ Run the tests:
 python -m pytest
 ```
 
-The current test suite covers:
+The current suite contains 14 tests covering:
 
 - Health-check behavior
 - Opportunity-search creation
@@ -196,27 +219,49 @@ The current test suite covers:
 - Repository storage and retrieval
 - Successful API retrieval
 - `404 Not Found` behavior
-- In-memory repository unit behavior
+- In-memory repository behavior
 - SQLAlchemy repository integration
 - Persisted API behavior
 - Per-test transaction rollback and database isolation
+- Evidence creation and parent-search validation
+- Evidence repository storage and retrieval
+- Evidence foreign-key persistence
+- Successful evidence creation through the API
+- Evidence creation `404 Not Found` behavior
 
 ## Project Structure
 
 ```text
 product-opportunity-agent/
+├── alembic/
+│   └── versions/
 ├── app/
+│   ├── database.py
 │   ├── main.py
+│   ├── model/
+│   │   ├── evidence_model.py
+│   │   └── opportunity_search_model.py
 │   ├── repository/
-│   │   └── opportunity_search_repo.py
+│   │   ├── evidence_repo.py
+│   │   ├── opportunity_search_repo.py
+│   │   ├── sqlalchemy_evidence_repo.py
+│   │   └── sqlalchemy_opportunity_search_repo.py
 │   ├── schema/
+│   │   ├── evidence.py
 │   │   └── opportunity_search.py
 │   └── service/
+│       ├── evidence_service.py
 │       └── opportunity_search_service.py
 ├── tests/
+│   ├── conftest.py
+│   ├── test_evidence_service.py
 │   ├── test_main.py
 │   ├── test_opportunity_search_repository.py
-│   └── test_opportunity_search_service.py
+│   ├── test_opportunity_search_service.py
+│   ├── test_sqlalchemy_evidence_repository.py
+│   └── test_sqlalchemy_opportunity_search_repository.py
+├── alembic.ini
+├── docker-compose.yaml
 ├── requirements.txt
 ├── requirements-dev.txt
 └── README.md
@@ -234,7 +279,8 @@ product-opportunity-agent/
 - [x] Database migrations with Alembic
 - [x] Isolated PostgreSQL integration tests
 - [x] Docker Compose for local PostgreSQL
-- [ ] Evidence ingestion and document processing
+- [x] Structured evidence ingestion and persistence
+- [ ] Document ingestion and text extraction
 - [ ] Semantic retrieval with embeddings and pgvector
 - [ ] Evidence extraction and grouping
 - [ ] Product-opportunity hypothesis generation

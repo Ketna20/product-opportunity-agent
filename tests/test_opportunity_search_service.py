@@ -34,8 +34,8 @@ def test_create_opportunity_search() -> None:
 
     assert isinstance(result.id, UUID)
     assert stored_search == result
-    retrieved_Search= service.get_by_id(result.id)
-    assert retrieved_Search == result
+    retrieved_search = service.get_by_id(result.id)
+    assert retrieved_search == result
     assert result.product_category == request.product_category
     assert result.market == request.market
     assert result.target_customer == request.target_customer

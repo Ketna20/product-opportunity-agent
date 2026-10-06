@@ -20,6 +20,7 @@ if config.config_file_name is not None:
 # target_metadata = mymodel.Base.metadata
 from app.database import Base, DATABASE_URL
 from app.model import opportunity_search_model  # noqa: F401
+from app.model import evidence_model  # noqa: F401
 
 
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
