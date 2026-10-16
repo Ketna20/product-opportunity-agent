@@ -1,3 +1,6 @@
+from urllib import response
+from xmlrpc import client
+
 from fastapi.testclient import TestClient
 from uuid import UUID, uuid4
 
@@ -210,6 +213,130 @@ def test_create_evidence_for_unknown_search_returns_404(
     response = client.post(
         f"/opportunity-searches/{unknown_search_id}/evidence",
         json=request_body,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Opportunity search not found"
+    }
+
+
+def test_list_evidence_for_opportunity_search(
+    client: TestClient,
+) -> None:
+    search_request = {
+        "product_category": "Facial moisturizer",
+        "market": "United States",
+        "target_customer": (
+            "Environmentally conscious skincare consumers"
+        ),
+        "objective": (
+            "Identify an unmet customer need that could "
+            "support a new product"
+        ),
+        "constraints": [
+            "Retail price below $60",
+            "Suitable for direct-to-consumer sales",
+        ],
+        "initial_hypothesis": None,
+    }
+
+    create_search_response = client.post(
+        "/opportunity-searches",
+        json=search_request,
+    )
+
+    assert create_search_response.status_code == 201
+
+    search_id = create_search_response.json()["id"]
+
+    first_evidence_request = {
+        "source_type": "customer_review",
+        "source_name": "Amazon review",
+        "content": (
+            "The moisturizer works well, but the packaging "
+            "creates too much waste."
+        ),
+        "source_url": "https://example.com/reviews/123",
+    }
+
+    second_evidence_request = {
+        **first_evidence_request,
+        "source_name": "Sephora review",
+        "content": (
+            "I like the moisturizer, but I wish it came in "
+            "recyclable packaging."
+        ),
+        "source_url": "https://example.com/reviews/456",
+    }
+
+    first_create_response = client.post(
+        f"/opportunity-searches/{search_id}/evidence",
+        json=first_evidence_request,
+    )
+    second_create_response = client.post(
+        f"/opportunity-searches/{search_id}/evidence",
+        json=second_evidence_request,
+    )
+
+    assert first_create_response.status_code == 201
+    assert second_create_response.status_code == 201
+
+    response = client.get(
+        f"/opportunity-searches/{search_id}/evidence"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [
+        first_create_response.json(),
+        second_create_response.json(),
+    ]
+
+
+def test_list_evidence_returns_empty_list_when_none_exist(
+    client: TestClient,
+) -> None:
+    search_request = {
+        "product_category": "Facial moisturizer",
+        "market": "United States",
+        "target_customer": (
+            "Environmentally conscious skincare consumers"
+        ),
+        "objective": (
+            "Identify an unmet customer need that could "
+            "support a new product"
+        ),
+        "constraints": [
+            "Retail price below $60",
+            "Suitable for direct-to-consumer sales",
+        ],
+        "initial_hypothesis": None,
+    }
+
+    create_search_response = client.post(
+        "/opportunity-searches",
+        json=search_request,
+    )
+
+    assert create_search_response.status_code == 201
+
+    search_id = create_search_response.json()["id"]
+
+    response = client.get(
+        f"/opportunity-searches/{search_id}/evidence"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_evidence_for_unknown_search_returns_404(
+    client: TestClient,
+) -> None:
+    unknown_search_id = uuid4()
+
+    response = client.get(
+        f"/opportunity-searches/{unknown_search_id}/evidence"
     )
 
     assert response.status_code == 404

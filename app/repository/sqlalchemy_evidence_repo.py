@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.model.evidence_model import EvidenceModel
@@ -12,8 +13,8 @@ class SqlAlchemyEvidenceRepository:
         self._session = session
 
     def save(
-    self,
-    evidence: EvidenceResponse,
+        self,
+        evidence: EvidenceResponse,
 ) -> EvidenceResponse:
         model = EvidenceModel(
             id=evidence.id,
@@ -48,6 +49,28 @@ class SqlAlchemyEvidenceRepository:
         if model is None:
             return None
         return self._to_response(model)
+
+
+    def find_by_opportunity_search_id(
+        self,
+        opportunity_search_id: UUID,
+    ) -> list[EvidenceResponse]:
+        stmt = (
+            select(EvidenceModel)
+            .where(
+                EvidenceModel.opportunity_search_id == opportunity_search_id
+            )
+            .order_by(
+                EvidenceModel.created_at,
+                EvidenceModel.id,
+            )
+        )
+        models = self._session.scalars(stmt).all()
+        return [
+            self._to_response(model)
+            for model in models
+        ]
+
 
     @staticmethod
     def _to_response(

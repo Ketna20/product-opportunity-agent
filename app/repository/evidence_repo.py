@@ -11,7 +11,11 @@ class EvidenceRepository(Protocol):
     )-> EvidenceResponse:
         ...
 
-
+    def find_by_opportunity_search_id(
+        self,
+        opportunity_search_id: UUID,
+    ) -> list[EvidenceResponse]:
+        ...
 
 class InMemoryEvidenceRepository:
     def __init__(self) -> None:
@@ -30,4 +34,12 @@ class InMemoryEvidenceRepository:
     ) -> EvidenceResponse | None:
         return self._evidence.get(evidence_id)
     
-    
+    def find_by_opportunity_search_id(
+            self,
+            opportunity_search_id: UUID,
+        ) -> list[EvidenceResponse]:
+        return [
+            evidence
+            for evidence in self._evidence.values()
+            if evidence.opportunity_search_id == opportunity_search_id
+        ]

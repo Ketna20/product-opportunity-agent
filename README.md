@@ -28,7 +28,7 @@ The focus is not only on generating AI output, but on making that output traceab
 The current API supports:
 
 - Creating and retrieving opportunity searches
-- Adding structured evidence to an existing opportunity search
+- Adding and retrieving structured evidence for an existing opportunity search
 - Validating request and response data with Pydantic
 - Assigning UUIDs, lifecycle status, and UTC timestamps
 - Persisting opportunity searches and evidence in PostgreSQL

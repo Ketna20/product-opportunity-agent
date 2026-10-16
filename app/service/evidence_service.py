@@ -33,7 +33,7 @@ class EvidenceService:
         self,
         opportunity_search_id: UUID,
         request: EvidenceCreate,
-) -> EvidenceResponse:
+    ) -> EvidenceResponse:
         opportunity_search = self._opportunity_search_repository.get_by_id(
             opportunity_search_id,
         )
@@ -51,3 +51,21 @@ class EvidenceService:
             created_at=datetime.now(UTC),
         )
         return self._evidence_repository.save(evidence)
+
+
+    def list_by_opportunity_search_id(
+        self,
+        opportunity_search_id: UUID,
+    ) -> list[EvidenceResponse]:
+        opportunity_search = self._opportunity_search_repository.get_by_id(
+            opportunity_search_id,
+        )
+        if opportunity_search is None:
+            raise OpportunitySearchNotFoundError(
+                f"Opportunity search {opportunity_search_id} not found"
+            )
+        return (
+            self._evidence_repository.find_by_opportunity_search_id(
+                opportunity_search_id,
+            )
+        )

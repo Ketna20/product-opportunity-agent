@@ -115,3 +115,19 @@ def create_evidence(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Opportunity search not found",
         )
+
+
+@app.get(
+    "/opportunity-searches/{search_id}/evidence",
+)
+def list_evidence(
+    search_id: UUID,
+    service: EvidenceServiceDependency,
+) -> list[EvidenceResponse]:
+    try:
+        return service.list_by_opportunity_search_id(search_id)
+    except OpportunitySearchNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Opportunity search not found",
+        )
