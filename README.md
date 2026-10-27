@@ -37,6 +37,16 @@ The current API supports:
 - Returning `404 Not Found` for unknown searches
 - Isolated unit, API, and PostgreSQL integration tests
 - Rolling back database changes after each automated test
+- Uploading `.txt`, `.md`, and text-based PDF documents
+- Extracting document text and saving it as evidence linked to an existing opportunity search
+- Rejecting unsupported formats, invalid UTF-8, unreadable PDFs, and documents without extractable text
+
+### Document Upload Limitations
+
+- Scanned PDFs and OCR are not supported.
+- Extracted text must contain 10–10,000 characters.
+- Uploaded filenames must contain 2–200 characters.
+- Only extracted text is saved; original document files are not retained.
 
 ## Current Architecture
 

@@ -1,7 +1,14 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 from app.database import get_db_session
 
@@ -131,3 +138,37 @@ def list_evidence(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Opportunity search not found",
         )
+
+
+@app.post(
+    "/opportunity-searches/{search_id}/evidence/upload",
+    status_code=status.HTTP_201_CREATED,
+)
+def upload_evidence(
+    search_id: UUID,
+    file: Annotated[UploadFile, File()],
+    service: EvidenceServiceDependency,
+) -> EvidenceResponse:
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document filename is required",
+        )
+    file_bytes = file.file.read()
+
+    try:
+        return service.create_from_document(
+            opportunity_search_id=search_id,
+            filename=file.filename,
+            file_bytes=file_bytes,
+        )
+    except OpportunitySearchNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Opportunity search not found",
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc

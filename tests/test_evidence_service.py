@@ -1,5 +1,3 @@
-from unittest import result
-
 import pytest
 from uuid import UUID, uuid4
 
@@ -222,3 +220,81 @@ def test_list_evidence_returns_empty_list_when_none_exist() -> None:
     )
 
     assert result == []
+
+def test_create_evidence_from_text_document() -> None:
+    evidence_repository = InMemoryEvidenceRepository()
+    opportunity_search_repository = (
+        InMemoryOpportunitySearchRepository()
+    )
+
+    opportunity_search_service = OpportunitySearchService(
+        opportunity_search_repository,
+    )
+    evidence_service = EvidenceService(
+        evidence_repository,
+        opportunity_search_repository,
+    )
+
+    opportunity_search = opportunity_search_service.create(
+        OpportunitySearchCreate(
+           product_category="Facial moisturizer",
+           market="United States",
+           target_customer=(
+               "Environmentally conscious consumers"
+           ),
+           objective=(
+               "Identify unmet needs in skincare packaging"
+           ),
+           constraints=["Retail price below $60"],
+           initial_hypothesis=None,
+        )
+    )
+
+    filename = "customer_feedback.txt"
+    file_bytes = b"  Customers want recyclable packaging.  "
+
+    result = evidence_service.create_from_document(
+        opportunity_search.id,
+        filename,
+        file_bytes
+    )
+
+    stored_evidence = evidence_repository.get_by_id(result.id)
+
+    assert result.opportunity_search_id == opportunity_search.id
+    assert result.source_type == "document"
+    assert result.source_name == "customer_feedback.txt"
+    assert result.content == "Customers want recyclable packaging."
+    assert result.source_url is None
+    assert evidence_repository.get_by_id(result.id) == result
+
+def test_create_evidence_from_document_for_missing_opportunity_search() -> None:
+    evidence_repository = InMemoryEvidenceRepository()
+    opportunity_search_repository = (
+        InMemoryOpportunitySearchRepository()
+    )
+    evidence_service = EvidenceService(
+        evidence_repository,
+        opportunity_search_repository,
+    )
+
+    missing_search_id = uuid4()
+    filename = "customer_feedback.txt"
+    file_bytes = b"Customers want recyclable packaging."
+
+    with pytest.raises(
+        OpportunitySearchNotFoundError,
+        match=str(missing_search_id),
+    ):
+    evidence_service.create_from_document(
+        missing_search_id,
+        filename,
+        file_bytes
+    )
+
+    assert (
+        evidence_repository.find_by_opportunity_search_id(
+            missing_search_id,
+        )
+        == []
+    )

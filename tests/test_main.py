@@ -1,9 +1,7 @@
-from urllib import response
-from xmlrpc import client
-
 from fastapi.testclient import TestClient
 from uuid import UUID, uuid4
 
+from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.model.opportunity_search_model import (
@@ -343,3 +341,212 @@ def test_list_evidence_for_unknown_search_returns_404(
     assert response.json() == {
         "detail": "Opportunity search not found"
     }
+
+
+def test_upload_text_document_as_evidence(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    search_response = client.post(
+        "/opportunity-searches",
+        json={
+            "product_category": "Facial moisturizer",
+            "market": "United States",
+            "target_customer": (
+                "Environmentally conscious consumers"
+            ),
+            "objective": (
+                "Identify an unmet customer needs in skincare packaging"
+            ),
+            "constraints": [
+                "Retail price below $60",
+                "Suitable for direct-to-consumer sales",
+            ],
+            "initial_hypothesis": None,
+        },
+    )
+
+    assert search_response.status_code == 201
+
+    search_id = search_response.json()["id"]
+
+    files={
+        "file": (
+            "feedback.txt",
+            b"  Customers want recyclable packaging.  ",
+            "text/plain",
+        ),
+    }
+
+    response = client.post(
+        f"/opportunity-searches/{search_id}/evidence/upload",
+        files=files,
+    )
+
+    assert response.status_code == 201, response.text
+    response_body = response.json()
+
+    assert response_body["opportunity_search_id"] == search_id
+    assert response_body["source_type"] == "document"
+    assert response_body["source_name"] == "feedback.txt"
+    assert response_body["content"] == "Customers want recyclable packaging."
+    assert response_body["source_url"] is None
+
+    persisted_model = db_session.get(
+        EvidenceModel,
+        UUID(response_body["id"]),
+    )
+    assert persisted_model is not None
+    assert persisted_model.content == response_body["content"]
+    assert str(persisted_model.opportunity_search_id) == search_id
+
+    list_response = client.get(
+        f"/opportunity-searches/{search_id}/evidence"
+    )
+    assert list_response.status_code == 200
+    assert list_response.json() == [response_body]
+
+
+def test_upload_document_for_unknown_search_returns_404(
+    client: TestClient,
+) -> None:
+    unknown_search_id = uuid4()
+
+    files={
+        "file": (
+            "feedback.txt",
+            b"Customers want recyclable packaging.",
+            "text/plain",
+        ),
+    }
+
+    response = client.post(
+        f"/opportunity-searches/{unknown_search_id}/evidence/upload",
+        files=files,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Opportunity search not found"
+    }
+
+
+def test_upload_unsupported_document_returns_400(
+    client: TestClient,
+) -> None:
+    search_response = client.post(
+        "/opportunity-searches",
+        json={
+            "product_category": "Facial moisturizer",
+            "market": "United States",
+            "target_customer": (
+                "Environmentally conscious consumers"
+            ),
+            "objective": (
+                "Identify an unmet customer needs in skincare packaging"
+            ),
+            "constraints": [
+                "Retail price below $60",
+                "Suitable for direct-to-consumer sales",
+            ],
+            "initial_hypothesis": None,
+        },
+    )
+
+    assert search_response.status_code == 201
+
+    search_id = search_response.json()["id"]
+
+    response = client.post(
+        f"/opportunity-searches/{search_id}/evidence/upload",
+        files={
+            "file": (
+                "feedback.csv",
+                b"Customers want recyclable packaging.",
+                "text/csv",
+            ),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Unsupported file extension: .csv"
+    }
+
+    list_response = client.get(
+        f"/opportunity-searches/{search_id}/evidence"
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json() == []
+
+
+def test_upload_pdf_document_as_evidence(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    search_response = client.post(
+        "/opportunity-searches",
+        json={
+            "product_category": "Facial moisturizer",
+            "market": "United States",
+            "target_customer": (
+                "Environmentally conscious consumers"
+            ),
+            "objective": (
+                "Identify an unmet customer needs in skincare packaging"
+            ),
+            "constraints": [
+                "Retail price below $60",
+                "Suitable for direct-to-consumer sales",
+            ],
+            "initial_hypothesis": None,
+        },
+    )
+
+    assert search_response.status_code == 201
+
+    search_id = search_response.json()["id"]
+
+    pdf_path = (
+        Path(__file__).parent / "fixtures" / "customer_feedback.pdf"
+    )
+
+    files = {
+        "file": (
+            "customer_feedback.pdf",
+            pdf_path.read_bytes(),
+            "application/pdf",
+        ),
+    }
+
+    response = client.post(
+        f"/opportunity-searches/{search_id}/evidence/upload",
+        files=files,
+    )
+
+    assert response.status_code == 201, response.text
+    response_body = response.json()
+
+    assert response_body["opportunity_search_id"] == search_id
+    assert response_body["source_type"] == "document"
+    assert response_body["source_name"] == "customer_feedback.pdf"
+    assert (
+        " ".join(response_body["content"].split())
+        == "Customers want clearer product labels."
+    )
+    assert response_body["source_url"] is None
+
+    persisted_model = db_session.get(
+        EvidenceModel,
+        UUID(response_body["id"]),
+    )
+    assert persisted_model is not None
+    assert persisted_model.content == response_body["content"]
+    assert str(persisted_model.opportunity_search_id) == search_id
+
+    list_response = client.get(
+        f"/opportunity-searches/{search_id}/evidence"
+    )
+    assert list_response.status_code == 200
+    assert list_response.json() == [response_body]

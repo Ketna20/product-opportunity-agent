@@ -14,6 +14,10 @@ from app.repository.opportunity_search_repo import (
     OpportunitySearchRepository,
 )
 
+from app.service.document_text_extractor import (
+    extract_text,
+)
+
 
 class OpportunitySearchNotFoundError(Exception):
     pass
@@ -52,6 +56,21 @@ class EvidenceService:
         )
         return self._evidence_repository.save(evidence)
 
+    def create_from_document(
+        self,
+        opportunity_search_id: UUID,
+        filename: str,
+        file_bytes: bytes,
+    ) -> EvidenceResponse:
+        text = extract_text(filename, file_bytes)
+
+        request = EvidenceCreate(
+            source_type="document",
+            source_name=filename,
+            content=text,
+        )
+
+        return self.create(opportunity_search_id, request)
 
     def list_by_opportunity_search_id(
         self,
