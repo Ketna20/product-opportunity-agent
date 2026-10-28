@@ -41,6 +41,13 @@ The current API supports:
 - Extracting document text and saving it as evidence linked to an existing opportunity search
 - Rejecting unsupported formats, invalid UTF-8, unreadable PDFs, and documents without extractable text
 
+### Evidence Chunking
+
+- A standalone utility splits text into character-based chunks with configurable size and overlap.
+- Validates chunk size and overlap settings and handles blank input.
+- Covered by unit tests for overlapping chunks and boundary cases.
+- Chunking is not yet integrated into evidence ingestion or storage.
+
 ### Document Upload Limitations
 
 - Scanned PDFs and OCR are not supported.

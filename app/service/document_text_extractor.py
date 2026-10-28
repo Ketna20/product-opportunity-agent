@@ -2,7 +2,6 @@ from pathlib import Path
 from io import BytesIO
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
-from sqlalchemy import exc
 
 SUPPORTED_TEXT_EXTENSIONS = {".txt", ".md"}
 
