@@ -286,11 +286,11 @@ def test_create_evidence_from_document_for_missing_opportunity_search() -> None:
         OpportunitySearchNotFoundError,
         match=str(missing_search_id),
     ):
-    evidence_service.create_from_document(
-        missing_search_id,
-        filename,
-        file_bytes
-    )
+        evidence_service.create_from_document(
+            missing_search_id,
+            filename,
+            file_bytes
+        )
 
     assert (
         evidence_repository.find_by_opportunity_search_id(
