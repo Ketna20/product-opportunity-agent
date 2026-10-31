@@ -4,8 +4,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.model.evidence_model import EvidenceModel
+from app.model.evidence_chunk_model import EvidenceChunkModel
 
 from app.schema.evidence import EvidenceResponse
+from app.schema.evidence_chunk import EvidenceChunkResponse
 
 
 class SqlAlchemyEvidenceRepository:
@@ -33,9 +35,9 @@ class SqlAlchemyEvidenceRepository:
         except Exception:
             self._session.rollback()
             raise
-        
+
         self._session.refresh(model)
-        
+
         return self._to_response(model)
 
     def get_by_id(
@@ -85,4 +87,75 @@ class SqlAlchemyEvidenceRepository:
             source_url=model.source_url,
             created_at=model.created_at,
         )
-    
+
+
+    @staticmethod
+    def _to_chunk_response(
+        model: EvidenceChunkModel,
+    ) -> EvidenceChunkResponse:
+        return EvidenceChunkResponse(
+            id=model.id,
+            evidence_id=model.evidence_id,
+            chunk_index=model.chunk_index,
+            content=model.content,
+            created_at=model.created_at,
+        )
+
+    def save_with_chunks(
+        self,
+        evidence: EvidenceResponse,
+        chunks: list[EvidenceChunkResponse],
+    ) -> EvidenceResponse:
+        evidence_model = EvidenceModel(
+            id=evidence.id,
+            opportunity_search_id=evidence.opportunity_search_id,
+            source_type=evidence.source_type,
+            source_name=evidence.source_name,
+            content=evidence.content,
+            source_url=evidence.source_url,
+            created_at=evidence.created_at,
+        )
+
+        try:
+            self._session.add(evidence_model)
+            self._session.flush()
+
+            for chunk in chunks:
+                chunk_model = EvidenceChunkModel(
+                    id=chunk.id,
+                    evidence_id=chunk.evidence_id,
+                    chunk_index=chunk.chunk_index,
+                    content=chunk.content,
+                    created_at=chunk.created_at,
+                )
+                self._session.add(chunk_model)
+
+            self._session.commit()
+        except Exception:
+            self._session.rollback()
+            raise
+
+        self._session.refresh(evidence_model)
+
+        return self._to_response(evidence_model)
+
+
+    def find_chunks_by_evidence_id(
+        self,
+        evidence_id: UUID,
+    ) -> list[EvidenceChunkResponse]:
+        stmt = (
+            select(EvidenceChunkModel)
+            .where(
+                EvidenceChunkModel.evidence_id == evidence_id
+            )
+            .order_by(
+                EvidenceChunkModel.chunk_index,
+            )
+        )
+        models = self._session.scalars(stmt).all()
+
+        return [
+            self._to_chunk_response(model)
+            for model in models
+        ]

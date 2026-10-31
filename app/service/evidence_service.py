@@ -1,15 +1,15 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from app.repository.evidence_repo import (
-    EvidenceRepository,
-)
-
 from app.schema.evidence import (
     EvidenceCreate,
     EvidenceResponse,
 )
+from app.schema.evidence_chunk import EvidenceChunkResponse
 
+from app.repository.evidence_repo import (
+    EvidenceRepository,
+)
 from app.repository.opportunity_search_repo import (
     OpportunitySearchRepository,
 )
@@ -17,6 +17,7 @@ from app.repository.opportunity_search_repo import (
 from app.service.document_text_extractor import (
     extract_text,
 )
+from app.service.text_chunker import chunk_text
 
 
 class OpportunitySearchNotFoundError(Exception):
@@ -54,7 +55,21 @@ class EvidenceService:
             source_url=request.source_url,
             created_at=datetime.now(UTC),
         )
-        return self._evidence_repository.save(evidence)
+        chunks = [
+            EvidenceChunkResponse(
+                id=uuid4(),
+                evidence_id=evidence.id,
+                chunk_index=index,
+                content=text,
+                created_at=evidence.created_at,
+            )
+            for index, text in enumerate(chunk_text(evidence.content))
+        ]
+
+        return self._evidence_repository.save_with_chunks(
+            evidence,
+            chunks,
+        )
 
     def create_from_document(
         self,

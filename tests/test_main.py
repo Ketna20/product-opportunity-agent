@@ -3,11 +3,13 @@ from uuid import UUID, uuid4
 
 from pathlib import Path
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.model.opportunity_search_model import (
     OpportunitySearchModel,
 )
 from app.model.evidence_model import EvidenceModel
+from app.model.evidence_chunk_model import EvidenceChunkModel
 
 def test_health_check(client: TestClient) -> None:
     response = client.get("/health")
@@ -193,7 +195,19 @@ def test_create_evidence(
     assert response_body["id"] is not None
     assert response_body["created_at"] is not None
 
+    chunks = db_session.scalars(
+        select(EvidenceChunkModel)
+        .where(
+            EvidenceChunkModel.evidence_id
+            == UUID(response_body["id"])
+        )
+        .order_by(EvidenceChunkModel.chunk_index)
+    ).all()
 
+    assert len(chunks) == 1
+    assert chunks[0].chunk_index == 0
+    assert chunks[0].content == evidence_request_body["content"]
+    assert chunks[0].created_at == persisted_model.created_at
 
 def test_create_evidence_for_unknown_search_returns_404(
     client: TestClient,
@@ -405,6 +419,20 @@ def test_upload_text_document_as_evidence(
     )
     assert list_response.status_code == 200
     assert list_response.json() == [response_body]
+
+    chunks = db_session.scalars(
+        select(EvidenceChunkModel)
+        .where(
+            EvidenceChunkModel.evidence_id
+            == UUID(response_body["id"])
+        )
+        .order_by(EvidenceChunkModel.chunk_index)
+    ).all()
+
+    assert len(chunks) == 1
+    assert chunks[0].chunk_index == 0
+    assert chunks[0].content == "Customers want recyclable packaging."
+    assert chunks[0].created_at == persisted_model.created_at
 
 
 def test_upload_document_for_unknown_search_returns_404(

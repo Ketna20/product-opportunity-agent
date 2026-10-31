@@ -31,7 +31,8 @@ The current API supports:
 - Adding and retrieving structured evidence for an existing opportunity search
 - Validating request and response data with Pydantic
 - Assigning UUIDs, lifecycle status, and UTC timestamps
-- Persisting opportunity searches and evidence in PostgreSQL
+- Persisting opportunity searches, evidence, and evidence chunks in PostgreSQL
+- Saving new evidence and its chunks atomically in one transaction
 - Enforcing the relationship between evidence and its parent search
 - Managing schema changes with Alembic migrations
 - Returning `404 Not Found` for unknown searches
@@ -43,10 +44,19 @@ The current API supports:
 
 ### Evidence Chunking
 
-- A standalone utility splits text into character-based chunks with configurable size and overlap.
-- Validates chunk size and overlap settings and handles blank input.
-- Covered by unit tests for overlapping chunks and boundary cases.
-- Chunking is not yet integrated into evidence ingestion or storage.
+- New evidence is automatically split into character-based chunks during both structured evidence creation and document ingestion.
+- Ingestion uses 1,000-character chunks with 200-character overlap.
+- Each chunk is stored with a UUID, parent evidence ID, zero-based chunk index, text, and UTC timestamp.
+- Repository queries retrieve chunks for an evidence item in chunk-index order.
+- Database constraints enforce unique chunk positions per evidence item and nonnegative chunk indexes.
+- Tests cover chunk generation, persistence, ordering, parent filtering, and transaction rollback.
+
+### Chunking Limitations
+
+- Character-based chunks may split words.
+- Evidence created before chunk integration has not been backfilled.
+- Chunk retrieval is available at the repository level; there is no chunk-listing API endpoint yet.
+- Embeddings, semantic retrieval, and LLM workflows are not yet implemented.
 
 ### Document Upload Limitations
 

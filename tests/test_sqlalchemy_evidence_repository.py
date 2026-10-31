@@ -1,7 +1,10 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
+
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.repository.sqlalchemy_evidence_repo import (
     SqlAlchemyEvidenceRepository,
@@ -14,7 +17,7 @@ from app.schema.opportunity_search import (
     OpportunitySearchResponse,
     OpportunitySearchStatus,
 )
-
+from app.schema.evidence_chunk import EvidenceChunkResponse
 
 def test_save_and_retrieve_evidence(
     db_session: Session,
@@ -155,3 +158,134 @@ def test_find_evidence_by_opportunity_search_id(
         saved_evidence1,
         saved_evidence2,
     ]
+
+
+def test_save_evidence_with_chunks(
+    db_session: Session,
+) -> None:
+    search_repository = SqlAlchemyOpportunitySearchRepository(
+        db_session,
+    )
+    evidence_repository = SqlAlchemyEvidenceRepository(
+        db_session,
+    )
+    now = datetime.now(UTC)
+
+    search = OpportunitySearchResponse(
+        id=uuid4(),
+        product_category="Facial moisturizer",
+        market="United States",
+        target_customer="Consumers with sensitive skin",
+        objective="Identify unmet skincare needs",
+        constraints=[],
+        initial_hypothesis=None,
+        status=OpportunitySearchStatus.CREATED,
+        created_at=now,
+    )
+    search_repository.save(search)
+
+    evidence = EvidenceResponse(
+        id=uuid4(),
+        opportunity_search_id=search.id,
+        source_type="document",
+        source_name="feedback.txt",
+        content="Customers want less packaging and lower prices.",
+        source_url=None,
+        created_at=now,
+    )
+
+    chunk0 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence.id,
+        chunk_index=0,
+        content="Customers want less packaging",
+        created_at=now,
+    )
+    chunk1 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence.id,
+        chunk_index=1,
+        content="and lower prices.",
+        created_at=now,
+    )
+
+    saved_evidence = evidence_repository.save_with_chunks(
+        evidence,
+        [chunk1, chunk0],
+    )
+
+    db_session.expunge_all()
+
+    assert saved_evidence == evidence
+    assert evidence_repository.get_by_id(evidence.id) == evidence
+    assert evidence_repository.find_chunks_by_evidence_id(
+        evidence.id,
+    ) == [chunk0, chunk1]
+    assert evidence_repository.find_chunks_by_evidence_id(
+        uuid4(),
+    ) == []
+
+
+def test_chunk_failure_rolls_back_evidence(
+    db_session: Session,
+) -> None:
+    search_repository = SqlAlchemyOpportunitySearchRepository(
+        db_session,
+    )
+    evidence_repository = SqlAlchemyEvidenceRepository(
+        db_session,
+    )
+    now = datetime.now(UTC)
+
+    search = OpportunitySearchResponse(
+        id=uuid4(),
+        product_category="Facial moisturizer",
+        market="United States",
+        target_customer="Consumers with sensitive skin",
+        objective="Identify unmet skincare needs",
+        constraints=[],
+        initial_hypothesis=None,
+        status=OpportunitySearchStatus.CREATED,
+        created_at=now,
+    )
+    search_repository.save(search)
+
+    evidence = EvidenceResponse(
+        id=uuid4(),
+        opportunity_search_id=search.id,
+        source_type="document",
+        source_name="feedback.txt",
+        content="Customers want less packaging and lower prices.",
+        source_url=None,
+        created_at=now,
+    )
+
+    chunk0 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence.id,
+        chunk_index=0,
+        content="Customers want less packaging",
+        created_at=now,
+    )
+    chunk1 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence.id,
+        chunk_index=0,
+        content="and lower prices.",
+        created_at=now,
+    )
+
+    with pytest.raises(IntegrityError):
+        evidence_repository.save_with_chunks(
+            evidence,
+            [chunk0, chunk1],
+        )
+
+    db_session.expunge_all()
+
+    assert evidence_repository.get_by_id(evidence.id) is None
+    assert evidence_repository.find_chunks_by_evidence_id(
+        evidence.id,
+    ) == []
+
+    assert search_repository.get_by_id(search.id) == search

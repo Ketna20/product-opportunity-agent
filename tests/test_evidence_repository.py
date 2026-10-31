@@ -9,6 +9,10 @@ from app.schema.evidence import (
     EvidenceResponse,
 )
 
+from app.schema.evidence_chunk import (
+    EvidenceChunkResponse,
+)
+
 def test_find_evidence_by_opportunity_search_id() -> None:
     repository = InMemoryEvidenceRepository()
     search_id1 = uuid4()
@@ -25,7 +29,7 @@ def test_find_evidence_by_opportunity_search_id() -> None:
         source_url="https://example.com/test1",
         created_at=datetime.now(UTC),
     )
-    
+
     evidence2 = EvidenceResponse(
             id=evidence_id2,
             opportunity_search_id=search_id1,
@@ -44,7 +48,7 @@ def test_find_evidence_by_opportunity_search_id() -> None:
                 source_url="https://example.com/test3",
                 created_at=datetime.now(UTC),
     )
-    
+
     saved_evidence1 = repository.save(evidence1)
     saved_evidence2 = repository.save(evidence2)
     saved_evidence3 = repository.save(evidence3)
@@ -64,3 +68,44 @@ def test_find_evidence_returns_empty_list_when_none_exist() -> None:
     retrieved_evidence = repository.find_by_opportunity_search_id(uuid4())
 
     assert retrieved_evidence == []
+
+def test_save_evidence_with_chunks_and_retrieve_in_order() -> None:
+    repository = InMemoryEvidenceRepository()
+    now = datetime.now(UTC)
+
+    evidence = EvidenceResponse(
+        id=uuid4(),
+        opportunity_search_id=uuid4(),
+        source_type="document",
+        source_name="customer_feedback.txt",
+        content="Customers want less packaging and lower prices.",
+        source_url=None,
+        created_at=now,
+    )
+
+    chunk0 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence.id,
+        chunk_index=0,
+        content="Customers want less packaging",
+        created_at=now,
+    )
+
+    chunk1 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence.id,
+        chunk_index=1,
+        content="and lower prices.",
+        created_at=now,
+    )
+
+    saved_evidence = repository.save_with_chunks(
+        evidence,
+        [chunk0, chunk1]
+    )
+
+
+    assert saved_evidence == evidence
+    assert repository.get_by_id(evidence.id) == evidence
+    assert repository.find_chunks_by_evidence_id(evidence.id) == [chunk0, chunk1]
+    assert repository.find_chunks_by_evidence_id(uuid4()) == []

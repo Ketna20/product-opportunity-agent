@@ -20,7 +20,7 @@ from app.service.evidence_service import (
 )
 
 
-def test_create_evidence() -> None: 
+def test_create_evidence() -> None:
     evidence_repository = InMemoryEvidenceRepository()
     opportunity_search_repository = (
         InMemoryOpportunitySearchRepository()
@@ -60,7 +60,7 @@ def test_create_evidence() -> None:
     )
 
     result = evidence_service.create(
-        opportunity_search.id, 
+        opportunity_search.id,
         request,
     )
 
@@ -268,6 +268,16 @@ def test_create_evidence_from_text_document() -> None:
     assert result.source_url is None
     assert evidence_repository.get_by_id(result.id) == result
 
+    chunks = evidence_repository.find_chunks_by_evidence_id(
+        result.id,
+    )
+
+    assert len(chunks) == 1
+    assert chunks[0].evidence_id == result.id
+    assert chunks[0].chunk_index == 0
+    assert chunks[0].content == "Customers want recyclable packaging."
+    assert chunks[0].created_at == result.created_at
+
 def test_create_evidence_from_document_for_missing_opportunity_search() -> None:
     evidence_repository = InMemoryEvidenceRepository()
     opportunity_search_repository = (
@@ -298,3 +308,64 @@ def test_create_evidence_from_document_for_missing_opportunity_search() -> None:
         )
         == []
     )
+
+def test_create_evidence_with_multiple_chunks() -> None:
+    evidence_repository = InMemoryEvidenceRepository()
+    opportunity_search_repository = (
+        InMemoryOpportunitySearchRepository()
+    )
+
+    opportunity_search_service = OpportunitySearchService(
+        opportunity_search_repository,
+    )
+    evidence_service = EvidenceService(
+        evidence_repository,
+        opportunity_search_repository,
+    )
+
+    opportunity_search = opportunity_search_service.create(
+        OpportunitySearchCreate(
+           product_category="Facial moisturizer",
+           market="United States",
+           target_customer=(
+               "Environmentally conscious skincare consumers"
+           ),
+           objective=(
+               "Identify an unmet customer need for a new product"
+           ),
+           constraints=["Retail price below $60"],
+           initial_hypothesis=None,
+        )
+    )
+
+    content = "A" * 800 + "B" * 800 + "C" * 500
+
+    request = EvidenceCreate(
+        source_type="document",
+        source_name="long_feedback.txt",
+        content=content,
+    )
+
+    result = evidence_service.create(
+        opportunity_search.id,
+        request,
+    )
+
+    chunks = evidence_repository.find_chunks_by_evidence_id(
+        result.id,
+    )
+
+    assert len(chunks) == 3
+    assert [chunk.chunk_index for chunk in chunks] == [0, 1, 2]
+    assert [chunk.content for chunk in chunks] == [
+        content[0:1000],
+        content[800:1800],
+        content[1600:2100],
+    ]
+    assert len({chunk.id for chunk in chunks}) == 3
+    assert all(chunk.evidence_id == result.id for chunk in chunks)
+    assert all(
+        chunk.created_at == result.created_at
+        for chunk in chunks
+    )
+    assert evidence_repository.get_by_id(result.id) == result
