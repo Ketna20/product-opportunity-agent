@@ -41,6 +41,7 @@ The current API supports:
 - Uploading `.txt`, `.md`, and text-based PDF documents
 - Extracting document text and saving it as evidence linked to an existing opportunity search
 - Rejecting unsupported formats, invalid UTF-8, unreadable PDFs, and documents without extractable text
+- Retrieving evidence chunks within an opportunity search through `GET /opportunity-searches/{search_id}/chunks`
 
 ### Evidence Chunking
 
@@ -50,12 +51,14 @@ The current API supports:
 - Repository queries retrieve chunks for an evidence item in chunk-index order.
 - Database constraints enforce unique chunk positions per evidence item and nonnegative chunk indexes.
 - Tests cover chunk generation, persistence, ordering, parent filtering, and transaction rollback.
+- Search-scoped chunk retrieval orders results by parent evidence creation time, evidence ID, and chunk index.
+- The chunks endpoint returns `200 OK` with an empty list for an existing search without chunks, and `404 Not Found` for an unknown search.
+- Tests verify that chunk retrieval excludes evidence belonging to other searches.
 
 ### Chunking Limitations
 
 - Character-based chunks may split words.
 - Evidence created before chunk integration has not been backfilled.
-- Chunk retrieval is available at the repository level; there is no chunk-listing API endpoint yet.
 - Embeddings, semantic retrieval, and LLM workflows are not yet implemented.
 
 ### Document Upload Limitations

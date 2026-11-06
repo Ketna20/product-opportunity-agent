@@ -369,3 +369,70 @@ def test_create_evidence_with_multiple_chunks() -> None:
         for chunk in chunks
     )
     assert evidence_repository.get_by_id(result.id) == result
+
+def test_list_chunks_for_missing_opportunity_search() -> None:
+    evidence_repository = InMemoryEvidenceRepository()
+    opportunity_search_repository = (
+        InMemoryOpportunitySearchRepository()
+    )
+    evidence_service = EvidenceService(
+        evidence_repository,
+        opportunity_search_repository,
+    )
+
+    missing_search_id = uuid4()
+
+    with pytest.raises(
+        OpportunitySearchNotFoundError,
+        match=str(missing_search_id),
+    ):
+        evidence_service.list_chunks_by_opportunity_search_id(
+            missing_search_id
+        )
+
+def test_list_chunks_for_existing_opportunity_search() -> None:
+    evidence_repository = InMemoryEvidenceRepository()
+    opportunity_search_repository = (
+        InMemoryOpportunitySearchRepository()
+    )
+
+    search_service = OpportunitySearchService(
+            opportunity_search_repository,
+    )
+    evidence_service = EvidenceService(
+        evidence_repository,
+        opportunity_search_repository,
+    )
+
+    search = search_service.create(
+        OpportunitySearchCreate(
+            product_category="Facial moisturizer",
+            market="United States",
+            target_customer="Consumers with sensitive skin",
+            objective="Identify unmet skincare needs",
+            constraints=[],
+            initial_hypothesis=None,
+        )
+    )
+
+    assert evidence_service.list_chunks_by_opportunity_search_id(
+        search.id
+    ) == []
+
+    evidence = evidence_service.create(
+        search.id,
+        EvidenceCreate(
+            source_type="document",
+            source_name="feedback.txt",
+            content="Customers want recyclable packaging.",
+        ),
+    )
+
+    chunks = evidence_service.list_chunks_by_opportunity_search_id(
+        search.id
+    )
+
+    assert len(chunks) == 1
+    assert chunks[0].evidence_id == evidence.id
+    assert chunks[0].chunk_index == 0
+    assert chunks[0].content == evidence.content

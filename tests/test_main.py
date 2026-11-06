@@ -578,3 +578,124 @@ def test_upload_pdf_document_as_evidence(
     )
     assert list_response.status_code == 200
     assert list_response.json() == [response_body]
+
+def test_list_chunks_for_unknown_search_returns_404(
+        client: TestClient,
+) -> None:
+    unknown_search_id = uuid4()
+
+    response = client.get(
+        f"/opportunity-searches/{unknown_search_id}/chunks"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Opportunity search not found"
+    }
+
+def test_list_chunks_returns_empty_list_when_none_exist(
+        client: TestClient,
+) -> None:
+    search_response = client.post(
+        "/opportunity-searches",
+        json={
+            "product_category": "Facial moisturizer",
+            "market": "United States",
+            "target_customer": "Consumers with sensitive skin",
+            "objective": "Identify unmet skincare needs",
+            "constraints": [],
+            "initial_hypothesis": None,
+        },
+    )
+
+
+    assert search_response.status_code == 201
+    search_id= search_response.json()["id"]
+
+    response = client.get(
+        f"/opportunity-searches/{search_id}/chunks"
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_list_chunks_for_opportunity_search(
+    client: TestClient,
+) -> None:
+    search_response = client.post(
+        "/opportunity-searches",
+        json={
+            "product_category": "Facial moisturizer",
+            "market": "United States",
+            "target_customer": "Consumers with sensitive skin",
+            "objective": "Identify unmet skincare needs",
+            "constraints": [],
+            "initial_hypothesis": None,
+        },
+    )
+
+    assert search_response.status_code == 201
+    search_id = search_response.json()["id"]
+
+    content = "A" * 800 + "B" * 800 + "C" * 500
+    evidence_response = client.post(
+        f"/opportunity-searches/{search_id}/evidence",
+        json={
+            "source_type": "document",
+            "source_name": "feedback.txt",
+            "content": content,
+        },
+    )
+
+    assert evidence_response.status_code == 201
+    evidence = evidence_response.json()
+
+    other_search_response = client.post(
+        "/opportunity-searches",
+        json={
+            "product_category": "Home EV charging",
+            "market": "California",
+            "target_customer": "Apartment residents with electric vehicles",
+            "objective": "Identify barriers to overnight charging",
+            "constraints": [],
+            "initial_hypothesis": None,
+        },
+    )
+
+    assert other_search_response.status_code == 201
+    other_search_id = other_search_response.json()["id"]
+
+    other_evidence_response = client.post(
+        f"/opportunity-searches/{other_search_id}/evidence",
+        json={
+            "source_type": "document",
+            "source_name": "charging_feedback.txt",
+            "content": "Residents need reliable overnight charging.",
+        },
+    )
+
+    assert other_evidence_response.status_code == 201
+
+    response = client.get(
+        f"/opportunity-searches/{search_id}/chunks"
+    )
+
+    assert response.status_code == 200
+    chunks = response.json()
+
+    assert len(chunks) == 3
+    assert [chunk["chunk_index"] for chunk in chunks] == [0, 1, 2]
+    assert [chunk["content"] for chunk in chunks] == [
+        content[0:1000],
+        content[800:1800],
+        content[1600:2100],
+    ]
+    assert all(
+        chunk["evidence_id"] == evidence["id"]
+        for chunk in chunks
+    )
+    assert len({chunk["id"] for chunk in chunks}) == 3
+    assert all(
+        chunk["created_at"] == evidence["created_at"]
+        for chunk in chunks
+    )

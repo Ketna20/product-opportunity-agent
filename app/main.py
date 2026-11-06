@@ -19,13 +19,15 @@ from app.schema.opportunity_search import (
     OpportunitySearchCreate,
     OpportunitySearchResponse,
 )
+from app.schema.evidence import EvidenceCreate, EvidenceResponse
+from app.schema.evidence_chunk import EvidenceChunkResponse
 from app.service.opportunity_search_service import (
     OpportunitySearchService,
 )
 from app.repository.sqlalchemy_evidence_repo import (
     SqlAlchemyEvidenceRepository,
 )
-from app.schema.evidence import EvidenceCreate, EvidenceResponse
+
 from app.service.evidence_service import (
     EvidenceService,
     OpportunitySearchNotFoundError,
@@ -138,6 +140,21 @@ def list_evidence(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Opportunity search not found",
         )
+
+@app.get(
+    "/opportunity-searches/{search_id}/chunks",
+)
+def list_evidence_chunks(
+    search_id: UUID,
+    service: EvidenceServiceDependency,
+) -> list[EvidenceChunkResponse]:
+    try:
+        return service.list_chunks_by_opportunity_search_id(search_id)
+    except OpportunitySearchNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Opportunity search not found",
+        ) from exc
 
 
 @app.post(

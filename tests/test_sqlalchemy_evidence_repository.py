@@ -1,5 +1,6 @@
-from datetime import UTC, datetime
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
+from re import search
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -289,3 +290,98 @@ def test_chunk_failure_rolls_back_evidence(
     ) == []
 
     assert search_repository.get_by_id(search.id) == search
+
+def test_find_chunks_by_search_filters_and_orders(
+    db_session: Session,
+) -> None:
+    search_repository = SqlAlchemyOpportunitySearchRepository(
+        db_session,
+    )
+    evidence_repository = SqlAlchemyEvidenceRepository(
+        db_session,
+    )
+    now = datetime.now(UTC)
+
+    search = OpportunitySearchResponse(
+        id=uuid4(),
+        product_category="Facial moisturizer",
+        market="United States",
+        target_customer="Consumers with sensitive skin",
+        objective="Identify unmet skincare needs",
+        constraints=[],
+        initial_hypothesis=None,
+        status=OpportunitySearchStatus.CREATED,
+        created_at=now,
+    )
+    other_search = search.model_copy(update={"id": uuid4()})
+    search_repository.save(search)
+    search_repository.save(other_search)
+
+    evidence1 = EvidenceResponse(
+        id=UUID(int=2),
+        opportunity_search_id=search.id,
+        source_type="document",
+        source_name="first.txt",
+        content="First document content.",
+        source_url=None,
+        created_at=now,
+    )
+
+    evidence2 = evidence1.model_copy(
+        update={
+            "id": UUID(int=3),
+            "source_name": "second.txt",
+        }
+    )
+
+    later_evidence = evidence1.model_copy(
+        update={
+            "id": UUID(int=1),
+            "source_name": "later.txt",
+            "created_at": now + timedelta(seconds=1),
+        }
+    )
+    other_evidence = evidence1.model_copy(
+        update={
+            "id": UUID(int=4),
+            "opportunity_search_id": other_search.id,
+        }
+    )
+
+    chunk0 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence1.id,
+        chunk_index=0,
+        content="First chunk.",
+        created_at=now,
+    )
+    chunk1 = chunk0.model_copy(
+        update={"id": uuid4(), "chunk_index": 1}
+    )
+    second_chunk = chunk0.model_copy(
+        update={"id":uuid4(), "evidence_id": evidence2.id}
+    )
+    later_chunk = chunk0.model_copy(
+        update={"id": uuid4(), "evidence_id": later_evidence.id}
+    )
+    other_chunk = chunk0.model_copy(
+        update={"id": uuid4(), "evidence_id": other_evidence.id}
+    )
+    evidence_repository.save_with_chunks(later_evidence, [later_chunk])
+    evidence_repository.save_with_chunks(evidence2, [second_chunk])
+    evidence_repository.save_with_chunks(other_evidence, [other_chunk])
+    evidence_repository.save_with_chunks(evidence1, [chunk1, chunk0])
+
+    db_session.expunge_all()
+
+    assert evidence_repository.find_chunks_by_opportunity_search_id(
+        search.id,
+    ) == [chunk0, chunk1, second_chunk, later_chunk]
+
+    assert evidence_repository.find_chunks_by_opportunity_search_id(
+        other_search.id,
+    ) == [other_chunk]
+
+    assert evidence_repository.find_chunks_by_opportunity_search_id(
+        uuid4(),
+    ) == []

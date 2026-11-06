@@ -17,7 +17,7 @@ class SqlAlchemyEvidenceRepository:
     def save(
         self,
         evidence: EvidenceResponse,
-) -> EvidenceResponse:
+    ) -> EvidenceResponse:
         model = EvidenceModel(
             id=evidence.id,
             opportunity_search_id=evidence.opportunity_search_id,
@@ -150,6 +150,32 @@ class SqlAlchemyEvidenceRepository:
                 EvidenceChunkModel.evidence_id == evidence_id
             )
             .order_by(
+                EvidenceChunkModel.chunk_index,
+            )
+        )
+        models = self._session.scalars(stmt).all()
+
+        return [
+            self._to_chunk_response(model)
+            for model in models
+        ]
+
+    def find_chunks_by_opportunity_search_id(
+        self,
+        opportunity_search_id: UUID,
+    ) -> list[EvidenceChunkResponse]:
+        stmt = (
+            select(EvidenceChunkModel)
+            .join(
+                EvidenceModel,
+                EvidenceChunkModel.evidence_id == EvidenceModel.id
+            )
+            .where(
+                EvidenceModel.opportunity_search_id == opportunity_search_id
+            )
+            .order_by(
+                EvidenceModel.created_at,
+                EvidenceModel.id,
                 EvidenceChunkModel.chunk_index,
             )
         )

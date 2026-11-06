@@ -31,6 +31,12 @@ class EvidenceRepository(Protocol):
     ) -> list[EvidenceChunkResponse]:
         ...
 
+    def find_chunks_by_opportunity_search_id(
+        self,
+        opportunity_search_id: UUID,
+    ) -> list[EvidenceChunkResponse]:
+        ...
+
 
 class InMemoryEvidenceRepository:
     def __init__(self) -> None:
@@ -83,4 +89,26 @@ class InMemoryEvidenceRepository:
                 if chunk.evidence_id == evidence_id
             ),
             key=lambda c: c.chunk_index,
+        )
+
+    def find_chunks_by_opportunity_search_id(
+        self,
+        opportunity_search_id: UUID,
+    ) -> list[EvidenceChunkResponse]:
+        matching_evidence = {
+            evidence.id: evidence
+            for evidence in self._evidence.values()
+            if evidence.opportunity_search_id == opportunity_search_id
+        }
+        return sorted(
+            (
+                chunk
+                for chunk in self._chunks.values()
+                if chunk.evidence_id in matching_evidence
+            ),
+            key=lambda c: (
+                matching_evidence[c.evidence_id].created_at,
+                c.evidence_id,
+                c.chunk_index,
+            ),
         )

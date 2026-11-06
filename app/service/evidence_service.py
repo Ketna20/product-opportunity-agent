@@ -103,3 +103,19 @@ class EvidenceService:
                 opportunity_search_id,
             )
         )
+    def list_chunks_by_opportunity_search_id(
+        self,
+        opportunity_search_id: UUID,
+    ) -> list[EvidenceChunkResponse]:
+        opportunity_search = self._opportunity_search_repository.get_by_id(
+            opportunity_search_id,
+        )
+        if opportunity_search is None:
+            raise OpportunitySearchNotFoundError(
+                f"Opportunity search {opportunity_search_id} not found"
+            )
+        return (
+            self._evidence_repository.find_chunks_by_opportunity_search_id(
+                opportunity_search_id,
+            )
+    )

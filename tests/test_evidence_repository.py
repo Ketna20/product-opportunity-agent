@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.repository.evidence_repo import (
     InMemoryEvidenceRepository,
@@ -109,3 +109,71 @@ def test_save_evidence_with_chunks_and_retrieve_in_order() -> None:
     assert repository.get_by_id(evidence.id) == evidence
     assert repository.find_chunks_by_evidence_id(evidence.id) == [chunk0, chunk1]
     assert repository.find_chunks_by_evidence_id(uuid4()) == []
+
+def test_find_chunks_by_opportunity_search_id_returns_empty_list() -> None:
+    repository = InMemoryEvidenceRepository()
+
+    chunks = repository.find_chunks_by_opportunity_search_id(uuid4())
+
+    assert chunks == []
+
+def test_find_chunks_by_search_filters_and_orders() -> None:
+    repository = InMemoryEvidenceRepository()
+    search_id = uuid4()
+    now = datetime.now(UTC)
+
+    evidence1 = EvidenceResponse(
+        id=UUID(int=1),
+        opportunity_search_id=search_id,
+        source_type="document",
+        source_name="first.txt",
+        content="First document content.",
+        source_url=None,
+        created_at=now,
+    )
+    evidence2 = evidence1.model_copy(
+        update={
+            "id": UUID(int=2),
+            "source_name": "second.txt",
+        }
+    )
+    other_evidence = evidence1.model_copy(
+        update={
+            "id": UUID(int=3),
+            "opportunity_search_id": uuid4(),
+        }
+    )
+
+    chunk0 = EvidenceChunkResponse(
+        id=uuid4(),
+        evidence_id=evidence1.id,
+        chunk_index=0,
+        content="First chunk.",
+        created_at=now,
+    )
+    chunk1 = chunk0.model_copy(
+        update={
+            "id": uuid4(),
+            "chunk_index": 1,
+            "content": "Second chunk.",
+        }
+    )
+    second_document_chunk = chunk0.model_copy(
+        update={
+            "id": uuid4(),
+            "evidence_id": evidence2.id,
+        }
+    )
+    other_search_chunk = chunk0.model_copy(
+        update={
+            "id": uuid4(),
+            "evidence_id": other_evidence.id,
+        }
+    )
+    repository.save_with_chunks(evidence2, [second_document_chunk])
+    repository.save_with_chunks(other_evidence, [other_search_chunk])
+    repository.save_with_chunks(evidence1, [chunk1, chunk0])
+
+    chunks = repository.find_chunks_by_opportunity_search_id(search_id)
+
+    assert chunks == [chunk0, chunk1, second_document_chunk]
